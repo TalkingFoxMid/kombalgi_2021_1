@@ -2,14 +2,16 @@ import cats.Applicative
 import cats.effect._
 import cats.syntax.all._
 
+import java.io.PrintWriter
 import scala.annotation.tailrec
 import scala.io.StdIn
+import scala.io.Source
 
 case class Dot(x: Int, y: Int, id: Int)
 case class Edge(d1: Dot, d2: Dot, length: Double)
 
 trait Reader[F[_]] {
-  def readLine: F[String]
+  def readAll: F[String]
 }
 trait Printer[F[_]] {
   def printLine(s: String): F[Unit]
@@ -30,16 +32,31 @@ object Main extends IOApp {
     def *[B](b: F[B]): F[(A, B)] = Applicative[F].product(a, b)
   }
 
-  implicit val reader: Reader[IO] = new Reader[IO] {
-    override def readLine: IO[String] = IO(StdIn.readLine())
-  }
 
-  implicit val printer: Printer[IO] = (s: String) => IO(println(s))
+  def withReader(r: Reader[IO] => IO[Unit]): IO[Unit] = IO(Source.fromFile("in.txt"))
+    .bracket[Unit](x => {
+      val reader =  new Reader[IO] {
+        override def readAll: IO[String] = x.mkString.pure[IO]
+      }
+      r(reader)
+    })(y => IO(y.close()))
+  def withPrinter(p: Printer[IO] => IO[Unit]): IO[Unit] = IO(new PrintWriter("out.txt"))
+    .bracket[Unit](x => {
+      val printer = new Printer[IO] {
+        override def printLine(s: String): IO[Unit] = IO(x.println(s))
+      }
+      p(printer)
+    })(y => IO(y.close()))
 
-  override def run(args: List[String]): IO[ExitCode] =
+  def program(printer: Printer[IO], reader: Reader[IO]): IO[Unit] =
     for {
-      count <- reader.readLine.map(_.toInt)
-      dots <- readDots[IO](count, 1)
+      ::(_, next) <- reader.readAll.map(_.split("\n").toList)
+      dots = next.zipWithIndex.map {
+        case (str, index) => str.split(" ").map(_.toInt) match {
+          case Array(a, b) => Dot(a, b, index)
+          case _ => ???
+        }
+      }
       edges = decartian(dots).map { case (d1, d2) => Edge(d1, d2, distance(d1, d2))}
         .filterNot(edge => edge.d1 == edge.d2)
         .sortBy(_.length)
@@ -52,6 +69,11 @@ object Main extends IOApp {
         lst => printer.printLine(lst.map(_.id).appended(0).mkString(" "))
       }
       _ <- printer.printLine(ostov.map(_.length).sum.toString)
+    } yield ()
+
+  override def run(args: List[String]): IO[ExitCode] =
+    for {
+      _ <- withPrinter(p => withReader(r => program(p, r)))
     } yield ExitCode.Success
 
   @tailrec
@@ -70,15 +92,6 @@ object Main extends IOApp {
     }
     case Nil => claimed
   }
-
-  def readDots[F[_]: Applicative](count: Int, id: Int)(implicit reader: Reader[F]): F[List[Dot]] =
-
-    if (count == 0) Applicative[F].pure(Nil) else (reader.readLine * readDots(count - 1, id + 1)).map {
-      case (str, dots) => str.split(" ").map(_.toIntOption) match {
-        case Array(Some(a), Some(b)) => Dot(a, b, id) :: dots
-        case _ => ???
-      }
-    }
 
   def decartian[F[_]: Applicative, A](a: F[A]): F[(A, A)] = Applicative[F].product(a, a)
 
