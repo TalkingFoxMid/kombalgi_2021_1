@@ -5,11 +5,6 @@ import cats.syntax.all._
 import scala.annotation.tailrec
 import scala.io.StdIn
 
-trait Domain
-
-case object Free extends Domain
-case class Claimed(id: Dot) extends Domain
-
 case class Dot(x: Int, y: Int, id: Int)
 case class Edge(d1: Dot, d2: Dot, length: Double)
 
