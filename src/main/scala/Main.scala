@@ -66,7 +66,7 @@ object Main extends IOApp {
         case List(a, b) if b == dot => a
       })
       _ <- result.traverse {
-        lst => printer.printLine(lst.map(_.id).appended(0).mkString(" "))
+        lst => printer.printLine(lst.map(_.id).sorted.appended(0).mkString(" "))
       }
       _ <- printer.printLine(ostov.map(_.length).sum.toString)
     } yield ()
@@ -95,9 +95,9 @@ object Main extends IOApp {
 
   def decartian[F[_]: Applicative, A](a: F[A]): F[(A, A)] = Applicative[F].product(a, a)
 
-  def distance(d1: Dot, d2: Dot): Double = Math.sqrt {
+  def distance(d1: Dot, d2: Dot): Double = {
     val dx = d1.x - d2.x
     val dy = d1.y - d2.y
-    dx * dx + dy * dy
+    Math.abs(dx) + Math.abs(dy)
   }
 }
