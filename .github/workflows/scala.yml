@@ -23,5 +23,5 @@ jobs:
     - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: dist-without-markdown
+        name: assembly
         path: target/scala-2.13/ostov-assembly-0.1.jar
