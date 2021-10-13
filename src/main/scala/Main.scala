@@ -95,7 +95,7 @@ object Main extends IOApp {
 
   def decartian[F[_]: Applicative, A](a: F[A]): F[(A, A)] = Applicative[F].product(a, a)
 
-  def distance(d1: Dot, d2: Dot): Double = {
+  def distance(d1: Dot, d2: Dot): Int = {
     val dx = d1.x - d2.x
     val dy = d1.y - d2.y
     Math.abs(dx) + Math.abs(dy)
