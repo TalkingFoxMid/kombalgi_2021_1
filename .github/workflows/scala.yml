@@ -18,10 +18,10 @@ jobs:
       with:
         java-version: '11'
         distribution: 'adopt'
-    - name: Run tests
-      run: sbt test
+    - name: Build jar
+      run: sbt assembly
     - name: Archive production artifacts
       uses: actions/upload-artifact@v2
       with:
         name: dist-without-markdown
-        path: build.sbt
+        path: target/scala-2.13/ostov-assembly-0.1.jar
