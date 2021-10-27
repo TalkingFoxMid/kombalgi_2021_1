@@ -1,17 +1,17 @@
 import cats.Applicative
 import cats.effect._
 import cats.syntax.all._
-
 import java.io.PrintWriter
 import scala.annotation.tailrec
 import scala.io.StdIn
 import scala.io.Source
+import scala.io.StdIn.{readLine => readLn}
 
 case class Dot(x: Int, y: Int, id: Int)
 case class Edge(d1: Dot, d2: Dot, length: Double)
 
 trait Reader[F[_]] {
-  def readAll: F[String]
+  def readLine: F[String]
 }
 trait Printer[F[_]] {
   def printLine(s: String): F[Unit]
@@ -33,24 +33,23 @@ object Main extends IOApp {
   }
 
 
-  def withReader(r: Reader[IO] => IO[Unit]): IO[Unit] = IO(Source.fromFile("in.txt"))
-    .bracket[Unit](x => {
-      val reader =  new Reader[IO] {
-        override def readAll: IO[String] = x.mkString.pure[IO]
-      }
-      r(reader)
-    })(y => IO(y.close()))
-  def withPrinter(p: Printer[IO] => IO[Unit]): IO[Unit] = IO(new PrintWriter("out.txt"))
-    .bracket[Unit](x => {
-      val printer = new Printer[IO] {
-        override def printLine(s: String): IO[Unit] = IO(x.println(s))
-      }
-      p(printer)
-    })(y => IO(y.close()))
+  def withReader(r: Reader[IO] => IO[Unit]): IO[Unit] = {
+    val reader =  new Reader[IO] {
+      override def readLine: IO[String] = IO(readLn)
+    }
+    r(reader)
+  }
+  def withPrinter(p: Printer[IO] => IO[Unit]): IO[Unit] = {
+    val printer = new Printer[IO] {
+      override def printLine(s: String): IO[Unit] = IO(println(s))
+    }
+    p(printer)
+  }
 
   def program(printer: Printer[IO], reader: Reader[IO]): IO[Unit] =
     for {
-      ::(_, next) <- reader.readAll.map(_.split("\n").toList)
+      count <- reader.readLine.map(_.toInt)
+      next <- (1 to count).toList.as(reader.readLine).sequence
       dots = next.zipWithIndex.map {
         case (str, index) => str.split(" ").map(_.toInt) match {
           case Array(a, b) => Dot(a, b, index)
