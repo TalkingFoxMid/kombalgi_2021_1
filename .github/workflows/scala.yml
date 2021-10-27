@@ -2,8 +2,8 @@ name: Scala CI
 
 on:
   push:
-    tags:
-      - '!refs/tags/*'
+    branches:
+      - master
 
 jobs:
   build:
