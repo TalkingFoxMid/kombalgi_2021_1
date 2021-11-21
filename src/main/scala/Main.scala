@@ -1,14 +1,101 @@
-import cats.Applicative
+import Data.Graph
+import cats.{Applicative, Monoid}
 import cats.effect._
 import cats.syntax.all._
-import java.io.PrintWriter
-import scala.annotation.tailrec
-import scala.io.StdIn
-import scala.io.Source
-import scala.io.StdIn.{readLine => readLn}
 
-case class Dot(x: Int, y: Int, id: Int)
-case class Edge(d1: Dot, d2: Dot, length: Double)
+import scala.io.StdIn.{readLine => readLn}
+object Data {
+  trait Orientation
+  case object Forward extends Orientation
+  case object Backward extends Orientation
+
+  case class Chain[A](begin: A, path: List[(Edge[A], Orientation)]) {
+    def increment(grph: Graph[A]): Graph[A] = {
+      path.foldLeft(grph) {
+        case (grph, (Edge(from, to, _, f), Forward)) => grph.setF(from, to, f + h)
+        case (grph, (Edge(from, to, _, f), Backward)) => grph.setF(from, to, f - h)
+      }
+    }
+    def concat(other: Chain[A]): Chain[A] = Chain(begin, path ::: other.path)
+    def add(other: Edge[A], orientation: Orientation): Chain[A] = Chain(begin, (other, orientation) :: path)
+    def h: Int = path.map {
+      case (edge, Forward) => edge.capacity - edge.f
+      case (edge, Backward) => edge.f
+    }.min
+  }
+
+  case class Edge[A](from: A, to: A, capacity: Int, f: Int)
+
+  case class Graph[A](core: Set[Edge[A]]) {
+    def vertices: Set[A] = core.map(_.from) ++ core.map(_.to)
+
+    def outEdges(from: A): List[Edge[A]] = core.filter(_.from == from).toList
+
+    def inEdges(to: A): List[Edge[A]] = core.filter(_.to == to).toList
+
+    def setF(from: A, to: A, f: Int): Graph[A] = {
+      val maybeEdge = core.find(c => c.from == from && c.to == to)
+      maybeEdge match {
+        case Some(value) => Graph(core.filterNot(_ == value) + Edge(from, to, value.capacity, f))
+        case None => this
+      }
+    }
+
+    def getChains(s: A, t: A): List[Chain[A]] = {
+      def getChainsHelper(s: A, t: A, was: Chain[A]): List[Chain[A]] = {
+        val (outList, inList) = (
+          outEdges(s).filterNot(was.path.map(_._1).contains),
+          inEdges(s).filterNot(was.path.map(_._1).contains)
+        )
+        val outChains = for {
+          out <- outList
+          futureOut <- getChainsHelper(out.to, t, was.add(out, Forward))
+        } yield futureOut
+
+        val inChains = for {
+          in <- inList
+          futureIn <- getChainsHelper(in.from, t, was.add(in, Backward))
+        } yield futureIn
+
+        was :: outChains ::: inChains
+      }
+
+      getChainsHelper(s, t, Chain(s, Nil)).filter(
+        c => c.path match {
+          case (head, _) :: _ if head.to == t || head.from == t => true
+          case _ => false
+        }
+      )
+    }
+
+    def findAddChain(s: A, t: A): Option[Chain[A]] = getChains(s, t).find(_.h > 0)
+
+    def buildMaximalFlow(s: A, t: A): Graph[A] =
+      findAddChain(s, t).fold(this)(
+        _.increment(this).buildMaximalFlow(s, t)
+      )
+
+    def flowMatrix(implicit ordered: Ordering[A]): String = {
+      vertices.toList.sorted
+        .map(
+          v => outEdges(v).sortBy(_.to).map(_.f).mkString(" ")
+        ).mkString("\n")
+    }
+
+  }
+
+  implicit def monoidGraph[A]: Monoid[Graph[A]] = new Monoid[Graph[A]] {
+    override def empty: Graph[A] = Graph[A](Set.empty[Edge[A]])
+
+    override def combine(x: Graph[A], y: Graph[A]): Graph[A] =
+      Graph(x.core ++ y.core)
+  }
+  object Graph {
+    def apply[A](from: A, to: A, capacity: Int): Graph[A] = capacity match {
+      case i => Graph(Set(Edge(from, to, capacity, 0)))
+    }
+  }
+}
 
 trait Reader[F[_]] {
   def readLine: F[String]
@@ -17,16 +104,25 @@ trait Printer[F[_]] {
   def printLine(s: String): F[Unit]
 }
 
-case class DSU[A](pred: A => A) {
-  def origin(a: A): A = if (a == pred(a)) a else origin(pred(a))
-  def isTogether(a: A, b: A): Boolean = origin(a) == origin(b)
-  def union(a: A, b: A): DSU[A] = DSU[A](el => if (el == origin(a)) b else pred(el))
-}
-
-object DSU {
-  def empty[A]: DSU[A] = DSU(identity[A])
-}
 object Main extends IOApp {
+  class Program(printer: Printer[IO], reader: Reader[IO]) {
+    def start(): IO[Unit] =
+      for {
+        count <- reader.readLine.map(_.toInt)
+        rows: List[String] <- List.range(0, count).as(
+          reader.readLine
+        ).sequence
+        graphs = for {
+          (data, row) <- rows.zipWithIndex
+          (capacity, col) <- data.split(" ").zipWithIndex.toList
+        } yield Graph(row, col, capacity.toInt)
+        graph = graphs.toNel.get.reduce
+        start <- reader.readLine.map(_.toInt)
+        end <- reader.readLine.map(_.toInt)
+        way = graph.buildMaximalFlow(start, end)
+        _ <- printer.printLine(way.flowMatrix)
+      } yield ()
+  }
 
   implicit class ApplicativeOps[F[_]: Applicative, A](a: F[A]) {
     def *[B](b: F[B]): F[(A, B)] = Applicative[F].product(a, b)
@@ -46,57 +142,15 @@ object Main extends IOApp {
     p(printer)
   }
 
-  def program(printer: Printer[IO], reader: Reader[IO]): IO[Unit] =
-    for {
-      count <- reader.readLine.map(_.toInt)
-      next <- (1 to count).toList.as(reader.readLine).sequence
-      dots = next.zipWithIndex.map {
-        case (str, index) => str.split(" ").map(_.toInt) match {
-          case Array(a, b) => Dot(a, b, index)
-          case _ => ???
-        }
-      }
-      edges = decartian(dots).map { case (d1, d2) => Edge(d1, d2, distance(d1, d2))}
-        .filterNot(edge => edge.d1 == edge.d2)
-        .sortBy(_.length)
-      ostov = constructOstov(edges, Nil, DSU.empty[Edge])
-      result = dots.map(dot => ostov.map(edge => List(edge.d1, edge.d2)).collect {
-        case List(a, b) if a == dot => b
-        case List(a, b) if b == dot => a
-      })
-      _ <- result.traverse {
-        lst => printer.printLine(lst.map(_.id).sorted.appended(0).mkString(" "))
-      }
-      _ <- printer.printLine(ostov.map(_.length).sum.toString)
-    } yield ()
+
 
   override def run(args: List[String]): IO[ExitCode] =
     for {
-      _ <- withPrinter(p => withReader(r => program(p, r)))
+      _ <- withPrinter(p => withReader(r => new Program(p, r).start()))
     } yield ExitCode.Success
 
-  @tailrec
-  def constructOstov(freez: List[Edge], claimed: List[Edge], dsu: DSU[Edge]): List[Edge] = freez match {
-    case head :: freezTail => {
-      val left: Option[Edge] = claimed.find(edge => edge.d1 == head.d1 || edge.d2 == head.d1)
-      val right: Option[Edge] = claimed.find(edge => edge.d1 == head.d2 || edge.d2 == head.d2)
-      List(left, right).filter(_.isDefined) match {
-        case List(Some(a), Some(b)) => {
-          if (dsu.isTogether(a, b)) constructOstov(freezTail, claimed, dsu)
-          else constructOstov(freezTail, head :: claimed, dsu.union(a, b).union(b, head))
-        }
-        case List(Some(a)) => constructOstov(freezTail, head :: claimed, dsu.union(a, head))
-        case _ => constructOstov(freezTail, head :: claimed, dsu)
-      }
-    }
-    case Nil => claimed
-  }
+
 
   def decartian[F[_]: Applicative, A](a: F[A]): F[(A, A)] = Applicative[F].product(a, a)
 
-  def distance(d1: Dot, d2: Dot): Int = {
-    val dx = d1.x - d2.x
-    val dy = d1.y - d2.y
-    Math.abs(dx) + Math.abs(dy)
-  }
 }
