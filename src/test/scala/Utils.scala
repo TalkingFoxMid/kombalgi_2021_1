@@ -1,13 +1,10 @@
-import cats.Applicative
-import cats.data.Writer
 import cats.effect.kernel.Sync
-
-import java.util
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 import cats.syntax.all._
+
+import scala.collection.mutable.ListBuffer
+
 object Utils extends App {
-  def readerMock[F[_]: Sync](s: String): Reader[F] = {
+  def readerMock[F[_] : Sync](s: String): Reader[F] = {
     val lines = s.split("\n")
     val linesArrayList: ListBuffer[String] = ListBuffer.from(lines)
 
@@ -16,7 +13,10 @@ object Utils extends App {
         .handleError(_ => "")
     }
   }
-  def printerMock[F[_]: Sync](lb: ListBuffer[String]): Printer[F] = {
-    (s: String) => Sync[F].delay(lb.addOne(s))
+
+  def printerMock[F[_] : Sync](lb: ListBuffer[String]): Printer[F] = new Printer[F] {
+    override def printLine(s: String): F[Unit] = Sync[F].delay(lb.addOne(s))
+
+    override def printStr(s: String): F[Unit] = Sync[F].delay(lb.addOne(lb.remove(0) + s))
   }
 }

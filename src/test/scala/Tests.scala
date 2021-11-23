@@ -15,11 +15,10 @@ class Test extends AnyFlatSpec {
   }
   it should "work on 2 vertices" in {
     val input =
-      """2
-        |0 1
-        |0 0
-        |0
-        |1""".stripMargin
+      """3 3
+        |0 1 0
+        |1 0 1
+        |0 0 0""".stripMargin
 
     val output =
       """0 1
