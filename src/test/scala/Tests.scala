@@ -13,16 +13,4 @@ class Test extends AnyFlatSpec {
     program.start().unsafeRunSync()
     assert(buffer.mkString == correct)
   }
-  it should "work on 2 vertices" in {
-    val input =
-      """3 3
-        |0 1 0
-        |1 0 1
-        |0 0 0""".stripMargin
-
-    val output =
-      """0 1
-        |0 0""".stripMargin
-    checkResult(input, output)
-  }
 }

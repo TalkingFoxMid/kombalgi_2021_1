@@ -130,8 +130,8 @@ object Main extends IOApp {
       } yield graph
       graph = edges.toNel.get.reduce
       filter = (v: String) => (v != end && v != begin)
-      _ <- printer.printLine("Graph: ")
-      _ <- printer.printLine(graph.show(_.capacity)(filter))
+//      _ <- printer.printLine("Graph: ")
+//      _ <- printer.printLine(graph.show(_.capacity)(filter))
 
 //      _ <- printer.printLine("Edges: ")
 //      _ <- edges.traverse(_.g.toList.traverse(e => printer.printStr(s"(${e.from}, ${e.to}: ${e.capacity}) ")) >> printer.printLine(""))
