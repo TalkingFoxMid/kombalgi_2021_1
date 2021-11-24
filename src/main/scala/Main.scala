@@ -44,8 +44,8 @@ object Data {
     def getChains(s: A, t: A): List[Chain[A]] = {
       def getChainsHelper(s: A, t: A, was: Chain[A]): List[Chain[A]] = {
         val (outList, inList) = (
-          outEdges(s).filterNot(was.path.map(_._1).contains),
-          inEdges(s).filterNot(was.path.map(_._1).contains)
+          outEdges(s).filterNot(was.path.map(_._1).contains).filterNot(_.capacity == 0),
+          inEdges(s).filterNot(was.path.map(_._1).contains).filterNot(_.capacity == 0)
         )
         val outChains = for {
           out <- outList
@@ -70,10 +70,12 @@ object Data {
 
     def findAddChain(s: A, t: A): Option[Chain[A]] = getChains(s, t).find(_.h > 0)
 
-    def buildMaximalFlow(s: A, t: A): Graph[A] =
-      findAddChain(s, t).fold(this)(
-        _.increment(this).buildMaximalFlow(s, t)
+    def buildMaximalFlow(s: A, t: A, init: Int = 0): (Graph[A], Int) = {
+      val maybeChain = findAddChain(s, t)
+      maybeChain.fold((this, init))(
+        chain => chain.increment(this).buildMaximalFlow(s, t, chain.h + init)
       )
+    }
 
     def flowMatrix(implicit ordered: Ordering[A]): String = {
       vertices.toList.sorted
@@ -117,10 +119,12 @@ object Main extends IOApp {
           (capacity, col) <- data.split(" ").zipWithIndex.toList
         } yield Graph(row, col, capacity.toInt)
         graph = graphs.toNel.get.reduce
-        start <- reader.readLine.map(_.toInt)
-        end <- reader.readLine.map(_.toInt)
-        way = graph.buildMaximalFlow(start, end)
+        start <- reader.readLine.map(_.toInt - 1)
+        end <- reader.readLine.map(_.toInt - 1)
+        (way, max) = graph.buildMaximalFlow(start, end)
         _ <- printer.printLine(way.flowMatrix)
+        _ <- printer.printLine(max.toString)
+
       } yield ()
   }
 

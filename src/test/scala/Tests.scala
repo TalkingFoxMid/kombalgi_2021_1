@@ -11,19 +11,20 @@ class Test extends AnyFlatSpec {
     val reader = Utils.readerMock[IO](input)
     val program = new Program(printer, reader)
     program.start().unsafeRunSync()
-    assert(buffer.mkString == correct)
+    assert(buffer.mkString("\n") == correct)
   }
   it should "work on 2 vertices" in {
     val input =
       """2
         |0 1
         |0 0
-        |0
-        |1""".stripMargin
+        |1
+        |2""".stripMargin
 
     val output =
       """0 1
-        |0 0""".stripMargin
+        |0 0
+        |1""".stripMargin
     checkResult(input, output)
   }
 }

@@ -17,6 +17,6 @@ object Utils extends App {
     }
   }
   def printerMock[F[_]: Sync](lb: ListBuffer[String]): Printer[F] = {
-    (s: String) => Sync[F].delay(lb.addOne(s))
+    (s: String) => Sync[F].delay(s.split("\n").foreach(s => lb.addOne(s)))
   }
 }
