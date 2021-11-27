@@ -147,8 +147,8 @@ object Main extends IOApp {
       override def readLine: IO[String] =
         IO(q.dequeue()).handleError(_ => "")
     }
-    val result = r(reader)
-    source.close()
+    val result = r(reader) *> IO(source.close())
+
     result
   }
   def withPrinter(p: Printer[IO] => IO[Unit]): IO[Unit] = {
@@ -156,8 +156,7 @@ object Main extends IOApp {
     val printer = new Printer[IO] {
       override def printLine(s: String): IO[Unit] = IO(printWriter.println(s))
     }
-    val result = p(printer)
-    printWriter.close()
+    val result = p(printer) *> IO(printWriter.close())
     result
   }
 
