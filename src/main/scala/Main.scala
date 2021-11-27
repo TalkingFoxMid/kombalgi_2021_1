@@ -3,7 +3,11 @@ import cats.{Applicative, Monoid}
 import cats.effect._
 import cats.syntax.all._
 
+import java.io.{FileReader, PrintWriter}
+import scala.collection.mutable.ListBuffer
+import scala.io.Source
 import scala.io.StdIn.{readLine => readLn}
+import scala.util.{Success, Try}
 object Data {
   trait Orientation
   case object Forward extends Orientation
@@ -134,16 +138,27 @@ object Main extends IOApp {
 
 
   def withReader(r: Reader[IO] => IO[Unit]): IO[Unit] = {
+    import scala.collection.mutable.{Queue => MQ}
+    val q: MQ[String] = MQ()
+    val source = Source.fromFile("input.txt")
+
+    source.mkString.split("\n").foreach(q.enqueue)
     val reader =  new Reader[IO] {
-      override def readLine: IO[String] = IO(readLn)
+      override def readLine: IO[String] =
+        IO(q.dequeue()).handleError(_ => "")
     }
-    r(reader)
+    val result = r(reader)
+    source.close()
+    result
   }
   def withPrinter(p: Printer[IO] => IO[Unit]): IO[Unit] = {
+    val printWriter = new PrintWriter("out.txt")
     val printer = new Printer[IO] {
-      override def printLine(s: String): IO[Unit] = IO(println(s))
+      override def printLine(s: String): IO[Unit] = IO(printWriter.println(s))
     }
-    p(printer)
+    val result = p(printer)
+    printWriter.close()
+    result
   }
 
 
